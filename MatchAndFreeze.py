@@ -1,5 +1,6 @@
 """
-@Description :   For any 2-value instance, Match&Freeze computes an EFX0 allocation in polynomial time.
+@Description :   For any 2-value instance, Match&Freeze computes an EFX0 allocation 
+                 in polynomial time.
 @Author      :   Henrychur 
 @Time        :   2023/01/20 17:03:20
 """
@@ -46,6 +47,10 @@ class Hungary():
 
 class MatchAndFreeze():
     def __init__(self):
+        '''
+        @Description :   Match&Freeze algorithm for solving the EFX allocation problem 
+                         with any 2-value instance.
+        '''
         self.bipartiteMatching = Hungary()
         self.a, self.b = None, None # a, b are 2 value and a > b
         self.ab_ratio = None
@@ -62,6 +67,9 @@ class MatchAndFreeze():
         @Param       :   valuation_table - valuation table
         @Return      :   match - match result
         '''
+        # -------------------------------- #
+        # initialization
+        # -------------------------------- #
         self.a, self.b = a, b
         self.ab_ratio = np.floor(a/b-1) if b > 0 else 9999999
         self.valuation_table = valuation_table
@@ -71,14 +79,16 @@ class MatchAndFreeze():
         self.ordered_list_of_agent = [i for i in range(self.num_agents)]
         self.EFX_allocation = [[] for _ in range(self.num_agents)]
         self.freezed_agents = np.zeros(self.num_agents) - 1 # rounds that an agent is freezed
-
+        # -------------------------------- #
+        # loop util all goods are allocated
+        # -------------------------------- #
         while len(self.unallocated_goods) > 0:
             bipartite_graph = self.construct_bipartite_graph()
             match_results = self.bipartiteMatching.solve(bipartite_graph)
             
             round_allocated_good = [-1 for _ in range(len(self.active_agents))]
             # -------------------------------- # 
-            # matched case
+            # 1. matched case
             # -------------------------------- # 
             tmp_allocated_goods = []
             candidate_agents = [0 for _ in range(len(self.active_agents))]
@@ -92,8 +102,12 @@ class MatchAndFreeze():
             # remove allocated goods
             self.unallocated_goods = [good for good in self.unallocated_goods if good not in tmp_allocated_goods]
             # -------------------------------- #
-            # unmatched case
+            # 2. unmatched case
+            # unfair may occur when agent A's favorite good is allocated to agent B.
+            # so we need to freeze the agent who was allocated the good that is some other's favorite.
             # -------------------------------- #
+            
+            # allocate an arbitrary unallocated good to unmatched agents
             tmp_allocated_goods = []
             cnt = 0
             for idx, agent_flag in enumerate(candidate_agents):
@@ -108,43 +122,63 @@ class MatchAndFreeze():
                         return self.EFX_allocation
             # remove allocated goods
             self.unallocated_goods = [good for good in self.unallocated_goods if good not in tmp_allocated_goods]
-            # -------------------------------- #
-            # Construct the freeze set
-            # -------------------------------- #
-            for i in range(len(self.freezed_agents)):
-                if self.freezed_agents[i] > -1 :
-                    self.freezed_agents[i] -= 1
-            
-            round_freeze_list = []
-            for i in range(len(self.active_agents)):
-                freeze = False
-                for j in range(len(self.active_agents)):
-                    if i == j :
-                        continue
-                    if self.valuation_table[self.ordered_list_of_agent[j], round_allocated_good[i]] == self.a\
-                        and self.valuation_table[self.ordered_list_of_agent[j], round_allocated_good[j]] == self.b:
-                        freeze = True
-                        break
-                if freeze:
-                    round_freeze_list.append(self.ordered_list_of_agent[i])
-            
-            for agent in round_freeze_list:
-                self.active_agents.remove(agent)
-                self.ordered_list_of_agent.remove(agent)
-                self.freezed_agents[agent] = self.ab_ratio
-
-            self.ordered_list_of_agent.extend(round_freeze_list)
-            # -------------------------------- # 
+            # update the freeze round of agents
+            self.update_agents_freeze_rounds()
+            # construct the freeze set
+            self.construct_freeze_set(round_allocated_good)
             # recover the agent after freezed
-            # -------------------------------- # 
-            for agent, freeze_rounds in enumerate(self.freezed_agents):
-                if freeze_rounds == 0:
-                    self.active_agents.append(agent)
+            self.unfreeze_agents()
         return self.EFX_allocation
+
+    def update_agents_freeze_rounds(self):
+        '''
+        @Description :   the round of freeze of agents minus 1
+        @param       :   None
+        @return      :   None
+        '''
+        for i in range(len(self.freezed_agents)):
+            if self.freezed_agents[i] > -1 :
+                self.freezed_agents[i] -= 1
+
+    def unfreeze_agents(self):
+        '''
+        @Description :   unfreeze the agent if its freeze_round is 0
+        @param       :   None
+        @return      :   None
+        '''
+        for agent, freeze_rounds in enumerate(self.freezed_agents):
+            if freeze_rounds == 0:
+                self.active_agents.append(agent)
+
+    def construct_freeze_set(self, round_allocated_good):
+        '''
+        @Description :   construct the freeze set in this round
+        @param       :   round_allocated_good - the good allocated in this round
+        @return      :   None
+        '''
+        round_freeze_list = []
+        for i in range(len(self.active_agents)):
+            freeze = False
+            for j in range(len(self.active_agents)):
+                if i == j :
+                    continue
+                if self.valuation_table[self.ordered_list_of_agent[j], round_allocated_good[i]] == self.a\
+                    and self.valuation_table[self.ordered_list_of_agent[j], round_allocated_good[j]] == self.b:
+                    freeze = True
+                    break
+            if freeze:
+                round_freeze_list.append(self.ordered_list_of_agent[i])
+        # we also need to change the order of agents in ordered_list_of_agent
+        for agent in round_freeze_list:
+            self.active_agents.remove(agent)
+            self.ordered_list_of_agent.remove(agent)
+            self.freezed_agents[agent] = self.ab_ratio
+
+        self.ordered_list_of_agent.extend(round_freeze_list)
 
     def construct_bipartite_graph(self):
         '''
-        @Description :   construct bipartite graph.
+        @Description :   construct bipartite graph from active agent and goods left.
         @Param       :   None
         @Return      :   graph - bipartite graph
         '''

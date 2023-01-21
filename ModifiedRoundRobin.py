@@ -9,6 +9,10 @@ import numpy as np
 
 class ModifiedRoundRobin():
     def __init__(self):
+        '''
+        @Description :   Modified round-robin algorithm for solving the EFX allocation problem with
+                         the values of each agent i in the range of [xi, 2xi].
+        '''
         self.a, self.b = None, None # a, b are 2 value and a = 2b
         self.unallocated_goods = None # unallocated goods
         self.valuation_table = None # valuation table
@@ -22,6 +26,9 @@ class ModifiedRoundRobin():
         @Param       :   valuation_table - valuation table
         @Return      :   EFX_allocation - EFX allocation
         '''
+        # ------------------------ #
+        # init the parameters
+        # ------------------------ #
         self.valuation_table = valuation_table
         self.num_agents, self.num_goods = valuation_table.shape
         self.a, self.b = 2 * x, x
@@ -31,26 +38,29 @@ class ModifiedRoundRobin():
         # ------------------------ # 
         # Round-robin algorithm 
         # ------------------------ #
+        # for the complete rounds, we allocate the good to the agent in order
         for r in range(self.num_goods // self.num_agents):
             for agent in range(self.num_agents):
-                # find the good that agent value it most
-                max_value, prefered_good = -1, -1
-                for good in self.unallocated_goods:
-                    if self.valuation_table[agent, good] > max_value:
-                        max_value, prefered_good = self.valuation_table[agent, good], good
-                # allocate the good
-                self.EFX_allocation[agent].append(prefered_good)
-                self.unallocated_goods.remove(prefered_good)
+                self.allocate_agent_preferred_good(agent)
 
+        # for the goods left, we allocate the good to the agent in reverse order
         for agent in range(self.num_goods % self.num_agents):
-            # for the last round, we need to reverse the allocation order
+            # reverse the allocation order
             agent = self.num_agents - agent - 1
-            # find the good that agent value it most
-            max_value, prefered_good = -1, -1
-            for good in self.unallocated_goods:
-                if self.valuation_table[agent, good] > max_value:
-                    max_value, prefered_good = self.valuation_table[agent, good], good
-            # allocate the good
-            self.EFX_allocation[agent].append(prefered_good)
-            self.unallocated_goods.remove(prefered_good)
+            self.allocate_agent_preferred_good(agent)
         return self.EFX_allocation
+
+    def allocate_agent_preferred_good(self, agent):
+        '''
+        @Description :   allocate the agent preferred good.
+        @Param       :   agent - agent index
+        @Return      :   None
+        '''
+        # find the good that agent value it most
+        max_value, prefered_good = -1, -1
+        for good in self.unallocated_goods:
+            if self.valuation_table[agent, good] > max_value:
+                max_value, prefered_good = self.valuation_table[agent, good], good
+        # allocate the good
+        self.EFX_allocation[agent].append(prefered_good)
+        self.unallocated_goods.remove(prefered_good)
